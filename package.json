@@ -1,6 +1,6 @@
 {
-  "name": "sleeklogs",
-  "version": "1.0.1",
+  "name": "@lmaoleonix/sleeklogs",
+  "version": "1.0.4",
   "description": "A library for better looks and better logs.",
   "main": "index.js",
   "scripts": {
@@ -11,5 +11,14 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/lmaoleonix/sleeklogs.git"
-  }
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  },
+  "keywords": [
+    "console",
+    "looks",
+    "logs",
+    "bettererrorlogging"
+  ]
 }
