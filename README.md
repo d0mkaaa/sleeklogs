@@ -19,6 +19,14 @@ Install SleekLog using npm:
 npm install sleeklogs
 ```
 
+If you are gonna download from the github please import from
+
+```bash
+@lmaoleonix/sleeklogs
+```
+
+not just sleeklogs.
+
 ## Usage 
 
 Here's how to get started with SleekLog:
