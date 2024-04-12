@@ -60,8 +60,12 @@ class SleekLog {
     const formattedMessage = `${color}[${timestamp}] ${message}${this.colors.reset}`;
     console.log(formattedMessage);
     if (this.enableFileLogging) {
-      this.logToFile(`[${timestamp}] ${message}`);
+      this.logToFile(`[${timestamp}] ${this.stripColors(message)}`);
     }
+  }
+
+  stripColors(message) {
+    return message.replace(/\x1b\[[0-9;]*m/g, '');
   }
 
   logToFile(message) {
