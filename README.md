@@ -63,6 +63,7 @@ const logger = new SleekLog({
     }
 });
 
+logger.log('info', 'This is an informational message.', '#E1E1E1'); // Example using hex color
 logger.log('debug', 'This is a custom debug message.');
 logger.logError('An error occurred', new Error('Something went wrong'));
 
