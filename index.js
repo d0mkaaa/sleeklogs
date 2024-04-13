@@ -1,47 +1,41 @@
 const fs = require('fs');
 const os = require('os');
+const rawColors = require('./colors.json');
+
+function convertColorCodes(colors) {
+    let convertedColors = {};
+    for (let key in colors) {
+        if (typeof colors[key] === 'string') {
+            convertedColors[key] = colors[key].replace(/\\x1b/g, '\x1b');
+        } else if (typeof colors[key] === 'object') {
+            convertedColors[key] = convertColorCodes(colors[key]);
+        } else {
+            convertedColors[key] = colors[key];
+        }
+    }
+    return convertedColors;
+}
+
+const colors = convertColorCodes(rawColors);
+
+function supportsColor() {
+    if (process.stdout.isTTY && process.env.TERM !== 'dumb' && !process.env.NO_COLOR) {
+        return true;
+    }
+    return false;
+}
 
 class SleekLog {
   constructor(options = {}) {
-    const defaultLevels = {
-      info: { color: "\x1b[34m" },
-      warn: { color: "\x1b[33m" },
-      error: { color: "\x1b[31m" },
-      success: { color: "\x1b[32m" }
+    this.enableColors = options.enableColors !== false && supportsColor();
+    this.colors = this.enableColors ? colors : this.stripColors(colors);
+    this.levels = {
+      info: { color: this.colors.fg.blue, format: options.format || "[%timestamp%] %message%" },
+      warn: { color: this.colors.fg.yellow, format: options.format || "[%timestamp%] %message%" },
+      error: { color: this.colors.fg.red, format: options.format || "[%timestamp%] %message%" },
+      success: { color: this.colors.fg.green, format: options.format || "[%timestamp%] %message%" },
+      ...options.levels
     };
-
-    this.colors = {
-      reset: "\x1b[0m",
-      bright: "\x1b[1m",
-      dim: "\x1b[2m",
-      underscore: "\x1b[4m",
-      blink: "\x1b[5m",
-      reverse: "\x1b[7m",
-      hidden: "\x1b[8m",
-      fg: {
-        black: "\x1b[30m",
-        red: "\x1b[31m",
-        green: "\x1b[32m",
-        yellow: "\x1b[33m",
-        blue: "\x1b[34m",
-        magenta: "\x1b[35m",
-        cyan: "\x1b[36m",
-        white: "\x1b[37m",
-      },
-      bg: {
-        black: "\x1b[40m",
-        red: "\x1b[41m",
-        green: "\x1b[42m",
-        yellow: "\x1b[43m",
-        blue: "\x1b[44m",
-        magenta: "\x1b[45m",
-        cyan: "\x1b[46m",
-        white: "\x1b[47m",
-      },
-      ...options.colors
-    };
-
-    this.levels = { ...defaultLevels, ...options.levels };
     this.logFilePath = options.logFilePath || 'application.log';
     this.enableFileLogging = options.enableFileLogging || false;
   }
@@ -51,38 +45,32 @@ class SleekLog {
     return `${now.getFullYear()}-${(now.getMonth() + 1).toString().padStart(2, '0')}-${now.getDate().toString().padStart(2, '0')} ${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}`;
   }
 
+  formatMessage(level, message) {
+    let format = this.levels[level].format;
+    return format.replace('%timestamp%', this.formatTimestamp()).replace('%message%', message);
+  }
+
   log(level, message) {
-    if (!this.levels[level]) {
-      throw new Error(`Log level '${level}' not defined.`);
-    }
-    const color = this.levels[level].color || this.colors.reset;
-    const timestamp = this.formatTimestamp();
-    const formattedMessage = `${color}[${timestamp}] ${message}${this.colors.reset}`;
+    const color = this.levels[level] ? this.levels[level].color : this.colors.reset;
+    const formattedMessage = this.formatMessage(level, `${color}${message}${this.colors.reset}`);
     console.log(formattedMessage);
     if (this.enableFileLogging) {
-      this.logToFile(`[${timestamp}] ${this.stripColors(message)}`);
+      this.logToFile(`[${this.formatTimestamp()}] ${this.stripAnsi(message)}`);
     }
   }
 
-  stripColors(message) {
+  stripAnsi(message) {
     return message.replace(/\x1b\[[0-9;]*m/g, '');
   }
 
   logToFile(message) {
-    fs.appendFile(this.logFilePath, message + os.EOL, (err) => {
-      if (err) {
-        console.error('Error writing to log file:', err);
-      }
+    fs.appendFile(this.logFilePath, message + os.EOL, err => {
+      if (err) console.error('Error writing to log file:', err);
     });
   }
 
   logError(message, error) {
-    const stack = error && error.stack ? `\nStack Trace:\n${error.stack}` : '';
-    this.log('error', `${message}${stack}`);
-  }
-
-  defineLogLevel(level, color) {
-    this.levels[level] = { color };
+    this.log('error', `${message}\nStack Trace:\n${error.stack}`);
   }
 
   drawBar(label, value, maxValue, width, labelColor = this.colors.fg.white, barColor = this.colors.fg.green) {
@@ -90,6 +78,20 @@ class SleekLog {
     const barWidth = Math.round((percentage / 100) * width);
     const bar = `${barColor}${'█'.repeat(barWidth)}${this.colors.reset}${'░'.repeat(width - barWidth)}`;
     this.log('info', `${labelColor}${label}: ${bar} ${percentage.toFixed(2)}%`);
+  }
+
+  startSpinner(duration = 3000, message = 'Loading...', spinnerColor = this.colors.fg.cyan) {
+    const spinnerFrames = ['⠋', '⠙', '⠚', '⠒', '⠂', '⠂', '⠒', '⠲', '⠴', '⠦', '⠖', '⠒', '⠐', '⠐', '⠒', '⠓', '⠋'];
+    let i = 0;
+    const spinner = setInterval(() => {
+        process.stdout.write(`\r${spinnerColor}${spinnerFrames[i++ % spinnerFrames.length]} ${message}${this.colors.reset}`);
+    }, 80);
+
+    setTimeout(() => {
+        clearInterval(spinner);
+        process.stdout.write(`\r${' '.repeat(message.length + 20)}\r`);
+        console.log('Done!');
+    }, duration);
   }
 }
 
